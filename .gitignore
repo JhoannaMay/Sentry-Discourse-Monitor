@@ -1,4 +1,12 @@
+# Python environment
 venv/
 __pycache__/
 *.pyc
-.env
+
+# Local Data (Don't upload your history/results to GitHub)
+sentry_history.csv
+*.xlsx
+
+# Mac/Windows system files
+.DS_Store
+Thumbs.db
