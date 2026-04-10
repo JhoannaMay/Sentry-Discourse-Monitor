@@ -2,32 +2,35 @@ import streamlit as st
 import pandas as pd
 import plotly.express as px
 from utils.processor import calculate_fis
+from utils.analyzer import load_sentiment_model, get_sentiment_roberta # NEW
 
-# 1. Page Configuration
-st.set_page_config(page_title="Sentry | Religious Discourse Monitor", layout="wide")
+# 1. Load the AI Model (shows a spinner while loading)
+with st.spinner("Initializing RoBERTa Intelligence Engine..."):
+    classifier = load_sentiment_model()
 
-# 2. Mock Data Simulation (Phase 4/5 Placeholder)
-# This simulates the data we will eventually pull from Reddit PRAW
+# 2. Update Mock Data with REAL AI analysis
 if 'mock_data' not in st.session_state:
-    st.session_state.mock_data = pd.DataFrame({
-        'Username': ['User_Alpha', 'User_Beta', 'User_Alpha', 'User_Gamma', 'User_Beta', 'User_Delta', 'User_Alpha'],
-        'Sentiment': ['Negative', 'Neutral', 'Negative', 'Positive', 'Negative', 'Negative', 'Negative'],
-        'Content': [
-            'Attacking religious beliefs...', 
-            'General inquiry about schedule.', 
-            'Repeated hateful rhetoric.', 
-            'God bless everyone!', 
-            'Negative comment on leadership.', 
-            'Aggressive criticism.', 
-            'Persistent harassment.'
-        ],
-        'Timestamp': pd.to_datetime([
-            '2023-10-01 10:00', '2023-10-01 10:05', '2023-10-01 11:00', 
-            '2023-10-02 09:00', '2023-10-02 10:00', '2023-10-03 08:30', '2023-10-03 09:15'
-        ])
-    })
-
-data = st.session_state.mock_data
+    raw_texts = [
+        "This church leadership is doing a great job.",
+        "I am so tired of the constant criticism here.",
+        "Does anyone know the schedule for Sunday?",
+        "This community is becoming a toxic echo chamber.",
+        "The recent event was very inspiring and peaceful."
+    ]
+    usernames = ["User_Alpha", "User_Beta", "User_Gamma", "User_Alpha", "User_Delta"]
+    
+    # Run the model on each text
+    processed_data = []
+    for text, user in zip(raw_texts, usernames):
+        sentiment = get_sentiment_roberta(text, classifier)
+        processed_data.append({
+            'Username': user,
+            'Sentiment': sentiment,
+            'Content': text,
+            'Timestamp': pd.Timestamp.now()
+        })
+    
+    st.session_state.mock_data = pd.DataFrame(processed_data)
 
 # 3. Sidebar - Global Controls & Alert System
 st.sidebar.image("https://cdn-icons-png.flaticon.com/512/1063/1063073.png", width=80)
