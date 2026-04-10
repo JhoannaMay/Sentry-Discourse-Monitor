@@ -76,13 +76,27 @@ with tab1:
 
 with tab2:
     st.subheader("Persistent Bad Actors (User Watchlist)")
-    st.markdown("Users flagged based on the Frequency-Intensity Score (FIS).")
     
     if not flagged_users.empty:
+        # 1. Display the table
         st.dataframe(
             flagged_users.style.background_gradient(subset=['FIS_Score'], cmap='Reds'),
             use_container_width=True
         )
+        
+        # 2. Add a 'Confirm Flag' action
+        st.markdown("### Administrative Actions")
+        target_user = st.selectbox("Select User to Officialy Flag:", flagged_users['Username'])
+        
+        if st.button(f"Confirm Flag for {target_user}"):
+            from utils.processor import save_flagged_user
+            score = flagged_users[flagged_users['Username'] == target_user]['FIS_Score'].values[0]
+            
+            if save_flagged_user(target_user, score):
+                st.success(f"User {target_user} has been added to the Permanent Watchlist.")
+                st.toast("Database Updated!")
+            else:
+                st.info(f"User {target_user} is already in the database.")
     else:
         st.write("No users currently exceed the threshold.")
 

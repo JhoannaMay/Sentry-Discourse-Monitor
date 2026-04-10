@@ -31,3 +31,31 @@ def calculate_fis(df):
         })
         
     return pd.DataFrame(stats).sort_values(by='FIS_Score', ascending=False)
+
+def save_flagged_user(username, fis_score):
+    """
+    Saves a flagged user to a local CSV database.
+    This fulfills the 'User Flagging System' part of the thesis.
+    """
+    try:
+        # Load existing database or create new one
+        try:
+            db = pd.read_csv('flagged_database.csv')
+        except FileNotFoundError:
+            db = pd.DataFrame(columns=['Date_Flagged', 'Username', 'FIS_Score', 'Status'])
+        
+        # Check if user is already flagged
+        if username not in db['Username'].values:
+            new_entry = {
+                'Date_Flagged': pd.Timestamp.now().strftime('%Y-%m-%d %H:%M'),
+                'Username': username,
+                'FIS_Score': fis_score,
+                'Status': 'Under Review'
+            }
+            db = pd.concat([db, pd.DataFrame([new_entry])], ignore_index=True)
+            db.to_csv('flagged_database.csv', index=False)
+            return True
+        return False
+    except Exception as e:
+        print(f"Error saving to database: {e}")
+        return False
