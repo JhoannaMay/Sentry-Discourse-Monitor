@@ -1,0 +1,11 @@
+credentials:
+  usernames:
+    admin:
+      email: 'admin@gmail.com'
+      name: 'Admin User'
+      password: '$2b$12$EvPMkIi8uL1Bj7HJnhHqBu64uWDTbYaEFlfZMm986K/Hggc3ZYF9i'
+
+cookie:
+  expiry_days: 30
+  key: 'random_key'
+  name: 'some_cookie_name'

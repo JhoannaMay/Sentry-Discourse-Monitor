@@ -1,11 +1,40 @@
 import streamlit as st
 import pandas as pd
 import plotly.express as px
+import streamlit_authenticator as stauth
+import yaml
+from yaml.loader import SafeLoader
 from utils.processor import calculate_fis
 from utils.analyzer import load_sentiment_model, get_sentiment_roberta
 
-# 1. Page Configuration
+# 1. PAGE CONFIGURATION MUST BE AT THE VERY TOP
 st.set_page_config(page_title="Sentry | Religious Discourse Monitor", layout="wide")
+
+# 2. AUTHENTICATION SETUP
+with open('config.yaml') as file:
+    config = yaml.load(file, Loader=SafeLoader)
+
+authenticator = stauth.Authenticate(
+    config['credentials'],
+    config['cookie']['name'],
+    config['cookie']['key'],
+    config['cookie']['expiry_days']
+)
+
+# 3. LOGIN GATE
+name, authentication_status, username = authenticator.login('Login', 'main')
+
+# STOP the script here if not authenticated
+if authentication_status is False:
+    st.error('Username/password is incorrect')
+    st.stop()
+elif authentication_status is None:
+    st.warning('Please enter your username and password')
+    st.stop()
+
+# --- IF WE ARE HERE, THE USER IS AUTHENTICATED ---
+st.sidebar.write(f'Welcome, *{name}*')
+authenticator.logout('Logout', 'sidebar')
 
 # 2. Initialize AI Model
 with st.spinner("Initializing Multilingual Sentiment Engine..."):
