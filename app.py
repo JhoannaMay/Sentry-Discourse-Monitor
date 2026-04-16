@@ -7,10 +7,10 @@ from yaml.loader import SafeLoader
 from utils.processor import calculate_fis
 from utils.analyzer import load_sentiment_model, get_sentiment_roberta
 
-# 1. PAGE CONFIGURATION MUST BE AT THE VERY TOP
+
 st.set_page_config(page_title="Sentry | Religious Discourse Monitor", layout="wide")
 
-# 2. AUTHENTICATION SETUP
+# AUTHENTICATION 
 with open('config.yaml') as file:
     config = yaml.load(file, Loader=SafeLoader)
 
@@ -21,10 +21,10 @@ authenticator = stauth.Authenticate(
     config['cookie']['expiry_days']
 )
 
-# 3. LOGIN GATE
+# LOGIN GATE
 name, authentication_status, username = authenticator.login('Login', 'main')
 
-# STOP the script here if not authenticated
+
 if authentication_status is False:
     st.error('Username/password is incorrect')
     st.stop()
@@ -32,15 +32,14 @@ elif authentication_status is None:
     st.warning('Please enter your username and password')
     st.stop()
 
-# --- IF WE ARE HERE, THE USER IS AUTHENTICATED ---
 st.sidebar.write(f'Welcome, *{name}*')
 authenticator.logout('Logout', 'sidebar')
 
-# 2. Initialize AI Model
+# Initialize AI Model
 with st.spinner("Initializing Multilingual Sentiment Engine..."):
     classifier = load_sentiment_model()
 
-# 3. Data Initialization & Persistence (Includes Datetime Fix)
+
 if 'mock_data' not in st.session_state:
     try:
         df_loaded = pd.read_csv("sentry_history.csv")
@@ -53,8 +52,6 @@ if 'mock_data' not in st.session_state:
 data = st.session_state.mock_data
 
 # 4. Sidebar Controls
-st.sidebar.image("https://cdn-icons-png.flaticon.com/512/1063/1063073.png", width=80)
-st.sidebar.title("Sentry Controls")
 
 st.sidebar.markdown("### Live Data Feed")
 subreddit_input = st.sidebar.text_input("Enter Subreddit", "exiglesianicristo")
@@ -89,10 +86,10 @@ if not flagged_users.empty:
 else:
     st.sidebar.success("✅ Discourse Stable")
 
-# 5. Main Dashboard UI
+# 5. Main Dashboard
 st.title("🛡️ Sentry Dashboard")
 
-tab1, tab2, tab3 = st.tabs(["📊 Discourse Overview", "🚩 Flagged Users", "🔍 Content Archive"])
+tab1, tab2, tab3 = st.tabs(["Discourse Overview", "Flagged Users", "Dataset Archive"])
 
 with tab1:
     if not data.empty:
@@ -111,8 +108,7 @@ with tab1:
                              color='Sentiment', color_discrete_map=sentiment_colors, title="Sentiment Frequency")
             st.plotly_chart(fig_bar, use_container_width=True)
         
-        with col_right:
-            # Re-ensure datetime for grouping
+        with col_right:    
             data['Timestamp'] = pd.to_datetime(data['Timestamp'])
             trend_data = data.groupby([data['Timestamp'].dt.date, 'Sentiment']).size().reset_index(name='Count')
             fig_line = px.line(trend_data, x='Timestamp', y='Count', color='Sentiment',
