@@ -6,9 +6,21 @@ def fetch_recent_posts(subreddit_name, limit=25):
     headers = {"User-Agent": "Mozilla/5.0 SentryThesis/3.0"}
 
     inc_keywords = [
-        'inc', 'iglesia ni cristo', 'iglesia', 'i.n.c',
-        'manalo', 'evm', 'kulto', 'doktrina'
-     ]
+    # Official Names & Abbreviations
+    'inc', 'iglesia ni cristo', 'church of christ', 'i.n.c', 
+    
+    # Leadership (Past & Present)
+    'manalo', 'evm', 'fym', 'egm', 'angelo manalo',
+    
+    # Places & Events
+    'central temple', 'pabahay', 'philippine arena', 'lingap', 'sta cena', 'bnh',
+    
+    # Doctrines & Terms
+    'doktrina', 'leksyon', 'akay', 'handog', 'tanging handog', 'pagsamba', 'worship service',
+    
+    # Community & Slang (Common in r/exiglesianicristo)
+    'kulto', 'owes', 'handog', 'lokal', 'distrito', 'scan', 'pananalapi', 'pauwi'
+]   
 
     try:
         response = requests.get(url, headers=headers)
