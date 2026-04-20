@@ -7,22 +7,25 @@ from yaml.loader import SafeLoader
 import streamlit_authenticator as stauth
 from datetime import datetime
 
-from streamlit_autorefresh import st_autorefresh
-
 from utils.analyzer import load_sentiment_model, get_sentiment_roberta
 from utils.processor import calculate_fis
 from utils.reddit_client import fetch_recent_posts
 from utils.ai_topic_classifier import load_topic_model, classify_topics_ai
+from streamlit_autorefresh import st_autorefresh
+from datetime import datetime
 
+# 1. Start the 5-minute timer
+st_autorefresh(interval=300000, key="sentinel_refresh")
 
-
-count = st_autorefresh(interval=300000, key="fitchcounter")
-
+# 2. Update the Sidebar Sync text
+st.sidebar.markdown("---")
+st.sidebar.caption(f"🔄 Last System Sync: {datetime.now().strftime('%I:%M %p')}")
 # PAGE CONFIG
 st.set_page_config(page_title="Sentinel-D: INC Intelligence", layout="wide")
 
 if 'new_post_count' not in st.session_state:
     st.session_state.new_post_count = 0
+
 
 
 # =========================
@@ -223,11 +226,11 @@ if not df.empty:
 # 📊 TABS
 # =========================
 tab1, tab2, tab3, tab4, tab5 = st.tabs([
-    "📊 Overview",
-    "👤 Users",
-    "📂 Dataset",
-    "🧠 Topic Analysis",
-    "High Activity Posts"
+    "Overview",
+    "Users",
+    "High Activity Posts",
+    "Topic Analysis",
+    "Dataset Archive"
 ])
 
 # =========================
@@ -236,7 +239,7 @@ tab1, tab2, tab3, tab4, tab5 = st.tabs([
 with tab1:
     st.subheader("System Intelligence Overview")
 
-    # --- 1. METRICS ROW ---
+    # --- METRICS ROW ---
     if not df.empty:
     # 🟢 FIX: Clean the sentiment column before counting
     # This replaces anything not in the 'Big Three' with 'Neutral'
@@ -252,7 +255,7 @@ with tab1:
     
         st.divider()
 
-        # --- 2. TOPIC & KEYWORDS ROW ---
+        # --- TOPIC & KEYWORDS ROW ---
         col_left, col_right = st.columns(2)
 
         with col_left:
@@ -262,7 +265,7 @@ with tab1:
             st.plotly_chart(fig, use_container_width=True)
 
         with col_right:
-            st.markdown("### 📈 Key Intelligence Terms")
+            st.markdown("##Key Intelligence Terms")
             
             # Professional Keyword Extraction
             import re
@@ -295,7 +298,7 @@ with tab1:
 
         st.divider()
 
-        # --- 3. REFINED MAIN FEED ---
+        # --- MAIN FEED ---
         st.markdown("### 📰 Recent Intelligence Feed")
         
         # Display only the columns you need
@@ -363,53 +366,9 @@ with tab2:
         st.info("No user data found. Please fetch data from the sidebar first.")
 
 # =========================
-# 📂 DATASET TAB
+# 🔥 HIGH ACTIVITY TAB 
 # =========================
 with tab3:
-    st.subheader("Dataset Archive")
-    st.dataframe(df.sort_values(by='Timestamp', ascending=False), use_container_width=True)
-
-# 🧠 TOPIC ANALYSIS TAB
-with tab4:
-    st.subheader("🧠 Multi-Topic Analysis")
-
-    if not df.empty:
-
-        topic_options = [
-            "All",
-            "Leadership",
-            "Doctrines",
-            "Infrastructure"
-        ]
-
-        selected_topic = st.selectbox("Filter by Topic", topic_options)
-
-        # 🔹 Filtering logic (IMPORTANT FIX)
-        if selected_topic == "All":
-            filtered = df
-        else:
-            filtered = df[
-                (df['Primary_Topic'] == selected_topic) |
-                (df['Secondary_Topic'] == selected_topic)
-            ]
-
-        # 🔹 Display results
-        st.write(f"Showing posts related to: **{selected_topic}**")
-        st.write(f"Total Posts: {len(filtered)}")
-
-        st.dataframe(filtered[[
-            'Username',
-            'Content',
-            'Sentiment'
-        ]], use_container_width=True)
-
-    else:
-        st.info("No topic data available.")
-
-# =========================
-# 🔥 HIGH ACTIVITY TAB (TAB 5)
-# =========================
-with tab5:
     st.subheader("🔥 High Activity Intelligence")
     
     if not df.empty:
@@ -471,3 +430,74 @@ with tab5:
             st.success("✅ No posts currently meet the High Activity threshold.")
     else:
         st.info("No data available.")
+
+# 🧠 TOPIC ANALYSIS TAB
+with tab4:
+    st.subheader("🧠 Multi-Topic Analysis")
+
+    if not df.empty:
+
+        topic_options = [
+            "All",
+            "Leadership",
+            "Doctrines",
+            "Infrastructure"
+        ]
+
+        selected_topic = st.selectbox("Filter by Topic", topic_options)
+
+        # 🔹 Filtering logic (IMPORTANT FIX)
+        if selected_topic == "All":
+            filtered = df
+        else:
+            filtered = df[
+                (df['Primary_Topic'] == selected_topic) |
+                (df['Secondary_Topic'] == selected_topic)
+            ]
+
+        # 🔹 Display results
+        st.write(f"Showing posts related to: **{selected_topic}**")
+        st.write(f"Total Posts: {len(filtered)}")
+
+        st.dataframe(filtered[[
+            'Username',
+            'Content',
+            'Sentiment'
+        ]], use_container_width=True)
+
+    else:
+        st.info("No topic data available.")
+
+# =========================
+# 📂 DATASET TAB
+# =========================
+with tab5:
+    st.subheader("📂 Historical Dataset")
+    st.caption("Full archive of fetched intelligence. Double-click any Sentiment to correct.")
+
+    if not df.empty:
+        # Use the data_editor for the full archive
+        edited_dataset = st.data_editor(
+            df[['Username', 'Content', 'Sentiment', 'Timestamp']],
+            column_config={
+                "Sentiment": st.column_config.SelectboxColumn(
+                    "Sentiment",
+                    options=["Negative", "Neutral", "Positive"],
+                    required=True,
+                ),
+                "Content": st.column_config.TextColumn("Content", width="large", disabled=True),
+                "Username": st.column_config.TextColumn("Username", disabled=True),
+                "Timestamp": st.column_config.DatetimeColumn("Timestamp", disabled=True),
+            },
+            hide_index=True,
+            use_container_width=True,
+            key="dataset_editor"
+        )
+
+        
+        if not edited_dataset['Sentiment'].equals(df['Sentiment']):
+            if st.button("💾 Save Dataset Changes"):
+                df['Sentiment'] = edited_dataset['Sentiment']
+                df.to_csv("sentry_history.csv", index=False)
+                st.success("Full dataset updated!")
+                st.rerun()
