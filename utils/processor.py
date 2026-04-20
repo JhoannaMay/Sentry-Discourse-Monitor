@@ -8,16 +8,15 @@ def calculate_fis(df):
     for username, group in df.groupby('Username'):
         total = len(group)
         negatives = len(group[group['Sentiment'] == 'Negative'])
-        
+
         neg_ratio = negatives / total if total > 0 else 0
-        # FIS Formula: (Negative Volume squared) * Ratio
         fis_score = (negatives ** 2) * neg_ratio
-        
+
         user_stats.append({
             'Username': username,
             'Total_Posts': total,
             'Negative_Posts': negatives,
             'FIS_Score': round(fis_score, 2)
         })
-        
+
     return pd.DataFrame(user_stats).sort_values(by='FIS_Score', ascending=False)
