@@ -182,35 +182,53 @@ except Exception as e:
 # =========================
 # 📡 FETCH DATA & NOTIFICATION LOGIC
 # =========================
-subreddit = st.sidebar.text_input("Subreddit", "exiglesianicristo")
-
-# Initialize session state for notifications if it doesn't exist
-if 'new_post_count' not in st.session_state:
-    st.session_state.new_post_count = 0
+target_sub = st.sidebar.text_input("Target Subreddit", "exiglesianicristo")
 
 if st.sidebar.button("Fetch & Analyze"):
-    posts = fetch_recent_posts(subreddit)
-    
-    if posts:
-        new_fetched_df = pd.DataFrame(posts)
+    with st.spinner(f"Scanning r/{target_sub}..."):
         
-        # Compare with existing data to find truly 'new' entries
-        if not df.empty:
-            # We identify new posts by checking which 'Content' isn't in our current CSV
-            new_entries = new_fetched_df[~new_fetched_df['Content'].isin(df['Content'])]
-            st.session_state.new_post_count = len(new_entries)
-        else:
-            st.session_state.new_post_count = len(new_fetched_df)
+        # 2. Pass the user's input directly to the fetcher
+        raw_posts = fetch_recent_posts(target_sub)
+        
+        if raw_posts:
+            analyzed_posts = []
+            for p in raw_posts:
+                # --- [Start AI Analysis] ---
+                # We use the updated analyzer from our previous steps
+                sentiment, magnitude, is_sarcastic = get_sentiment_roberta(p['Content'], load_sentiment_model())
+                topic_data = classify_topics_ai(p['Content'], topic_classifier)
+                
+                p['Sentiment'] = sentiment
+                p['Magnitude'] = magnitude
+                p['Sarcastic'] = is_sarcastic
+                p['Primary_Topic'] = topic_data['Primary']
+                p['Secondary_Topic'] = topic_data['Secondary']
+                
+                analyzed_posts.append(p)
+            
+            # 3. Convert and Identify New Entries
+            new_fetched_df = pd.DataFrame(analyzed_posts)
+            
+            if not df.empty:
+                # Only count posts we haven't seen in our CSV yet
+                new_entries = new_fetched_df[~new_fetched_df['Content'].isin(df['Content'])]
+                st.session_state.new_post_count = len(new_entries)
+            else:
+                st.session_state.new_post_count = len(new_fetched_df)
 
-        # Merge and save
-        df = pd.concat([df, new_fetched_df]).drop_duplicates(subset=['Content'])
-        df.to_csv("sentry_history.csv", index=False)
-        
-        # Immediate feedback
-        if st.session_state.new_post_count > 0:
-            st.toast(f"🚀 Found {st.session_state.new_post_count} new posts!")
-        
-        st.rerun()
+            # 4. Merge with the master history and save
+            df = pd.concat([df, new_fetched_df]).drop_duplicates(subset=['Content'])
+            df.to_csv("sentry_history.csv", index=False)
+            
+            if st.session_state.new_post_count > 0:
+                st.toast(f"✅ Found {st.session_state.new_post_count} relevant posts in r/{target_sub}!")
+            else:
+                st.info(f"No new relevant posts found in r/{target_sub} at this time.")
+            
+            st.rerun()
+        else:
+            st.error(f"Could not find any relevant posts in r/{target_sub}. It might be private, empty, or have no INC-related content.")
+
 
 # =========================
 # 🔔 SMART ALERTS
@@ -241,18 +259,18 @@ with tab1:
 
     # --- METRICS ROW ---
     if not df.empty:
-    # 🟢 FIX: Clean the sentiment column before counting
-    # This replaces anything not in the 'Big Three' with 'Neutral'
-        df['Sentiment'] = df['Sentiment'].fillna('Neutral')
-        df.loc[~df['Sentiment'].isin(['Positive', 'Neutral', 'Negative']), 'Sentiment'] = 'Neutral'
-    
+        # Use value_counts to get totals for all 3 labels
         counts = df['Sentiment'].value_counts()
-
-        c1, c2, c3 = st.columns(3)
+        
+        # Force columns to display even if count is 0
+        c1, c2, c3, c4 = st.columns(4)
         c1.metric("🔴 Negative", counts.get('Negative', 0))
-        c2.metric("🔵 Neutral", counts.get('Neutral', 0))
+        c2.metric("⚪ Neutral", counts.get('Neutral', 0))
         c3.metric("🟢 Positive", counts.get('Positive', 0))
-    
+        
+        avg_intensity = df['Magnitude'].mean() if 'Magnitude' in df.columns else 0
+        c4.metric("⚡ Avg Intensity", f"{avg_intensity:.2f}")
+
         st.divider()
 
         # --- TOPIC & KEYWORDS ROW ---
@@ -265,7 +283,7 @@ with tab1:
             st.plotly_chart(fig, use_container_width=True)
 
         with col_right:
-            st.markdown("##Key Intelligence Terms")
+            st.markdown("Key Intelligence Terms")
             
             # Professional Keyword Extraction
             import re
@@ -306,12 +324,7 @@ with tab1:
         
         # Sort by newest first and clean the view
         feed_df = df.sort_values(by='Timestamp', ascending=False)[display_cols]
-        
-        st.dataframe(
-            feed_df, 
-            use_container_width=True, 
-            hide_index=True
-        )
+        st.dataframe(feed_df, use_container_width=True, hide_index=True)
 
     else:
         st.info("📡 No data available. Use the sidebar to fetch recent posts from Reddit.")
@@ -478,8 +491,12 @@ with tab5:
     if not df.empty:
         # Use the data_editor for the full archive
         edited_dataset = st.data_editor(
-            df[['Username', 'Content', 'Sentiment', 'Timestamp']],
+            df[['Username', 'Content', 'Sentiment', 'Magnitude', 'Sarcastic', 'Timestamp']],
             column_config={
+                "Magnitude": st.column_config.ProgressColumn(
+                "Intensity", help="Confidence of the AI", min_value=0, max_value=1, format="%.2f"
+            ),
+                "Sarcastic": st.column_config.CheckboxColumn("Sarcasm?"),
                 "Sentiment": st.column_config.SelectboxColumn(
                     "Sentiment",
                     options=["Negative", "Neutral", "Positive"],
