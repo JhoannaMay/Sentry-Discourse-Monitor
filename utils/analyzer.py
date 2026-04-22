@@ -5,23 +5,26 @@ import streamlit as st
 def load_sentiment_model():
     model_path = "lxyuan/distilbert-base-multilingual-cased-sentiments-student"
     return pipeline("sentiment-analysis", model=model_path)
-from transformers import pipeline
-import streamlit as st
 
 def get_sentiment_roberta(text, classifier):
-    # 🚩 List of words that usually indicate criticism in this context
-    critical_triggers = ['manalo', 'kulto', 'scam', 'pera', 'negosyo', 'brainwash', 'aliw']
-    
-    # 🚩 Sarcasm indicators (common in Tagalog critical posts)
-    sarcasm_indicators = ['pala', 'daw', 'diba', 'kunwari', 'grabe']
+    # Expanded triggers for better context detection
+    critical_triggers = [
+        'kulto', 'brainwash', 'scam', 'pera', 'hipokrito', 
+        'incoolto', 'corrupt', 'negosyo', 'pagsamba'
+    ]
 
     try:
-        # 1. Get initial AI Prediction
         result = classifier(text[:512])[0]
-        label = result['label'].capitalize()
-        mapping = {"Pos": "Positive", "Neg": "Negative", "Neu": "Neutral",
-                   "Positive": "Positive", "Negative": "Negative", "Neutral": "Neutral"}
-        sentiment = mapping.get(label, "Neutral")
+        raw_label = str(result['label']).lower()
+        magnitude = round(result['score'], 4)
+
+        # Mapping for the specific student model
+        if "pos" in raw_label:
+            sentiment = "Positive"
+        elif "neg" in raw_label:
+            sentiment = "Negative"
+        else:
+            sentiment = "Neutral"
 
         text_lower = text.lower()
 
