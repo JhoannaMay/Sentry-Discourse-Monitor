@@ -5,22 +5,24 @@ def calculate_fis(df):
         return pd.DataFrame()
 
     user_stats = []
-    
     for username, group in df.groupby('Username'):
         total = len(group)
-        # Use the average magnitude of negative posts
         neg_group = group[group['Sentiment'] == 'Negative']
         neg_count = len(neg_group)
         
+        # Average Magnitude of ALL posts by this user
+        avg_magnitude = group['Magnitude'].mean()
+        # Average Intensity of Negative posts specifically
         avg_intensity = neg_group['Magnitude'].mean() if neg_count > 0 else 0
 
-        # NEW FORMULA: Frequency * Average Intensity
+        # FIS Score: Weighting frequency and intensity
         fis_score = neg_count * avg_intensity
 
         user_stats.append({
             'Username': username,
             'Posts': total,
             'Neg_Posts': neg_count,
+            'Avg_Magnitude': round(avg_magnitude, 2),
             'Avg_Intensity': round(avg_intensity, 2),
             'FIS_Score': round(fis_score, 2)
         })
