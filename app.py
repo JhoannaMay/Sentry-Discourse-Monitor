@@ -6,6 +6,7 @@ from yaml.loader import SafeLoader
 import streamlit_authenticator as stauth
 from datetime import datetime
 from streamlit_autorefresh import st_autorefresh
+import pytz
 
 # Custom modules
 from utils.analyzer import load_sentiment_model, get_sentiment_roberta
@@ -158,9 +159,11 @@ if st.session_state.get("authentication_status"):
                 else:
                     status.update(label="Already up to date.", state="complete")
 
+    local_tz = pytz.timezone('Asia/Manila') 
+    local_time = datetime.now(local_tz) 
     # ❤️ SYSTEM HEARTBEAT (RESTORED)
     st.sidebar.divider()
-    st.sidebar.caption(f"System Heartbeat: {datetime.now().strftime('%I:%M %p')}")
+    st.sidebar.caption(f"System Heartbeat: {local_time.now().strftime('%I:%M %p')}")
     st.sidebar.caption("Auto-refresh active (5m interval)")
 
     # =========================
@@ -177,16 +180,36 @@ if st.session_state.get("authentication_status"):
     with tab1:
         if not df.empty:
             counts = df['Sentiment'].value_counts()
+
             c1, c2, c3, c4 = st.columns(4)
-            c1.metric("Negative", counts.get('Negative', 0))
-            c2.metric("Sarcasm", counts.get('Sarcasm', 0))
-            c3.metric("Neutral", counts.get('Neutral', 0))
-            c4.metric("Positive", counts.get('Positive', 0))
+            c1.metric("🔴 Negative", counts.get('Negative', 0))
+            c2.metric("🟣 Sarcasm", counts.get('Sarcasm', 0))
+            c3.metric("🔵 Neutral", counts.get('Neutral', 0))
+            c4.metric("🟢 Positive", counts.get('Positive', 0))
 
-            st.plotly_chart(px.pie(df, names='Sentiment'), use_container_width=True)
+            st.divider()
 
+            col_l, col_r = st.columns(2)
+
+            with col_l:
+                fig_pie = px.pie(df, names='Sentiment', hole=0.4)
+                st.plotly_chart(fig_pie, use_container_width=True)
+
+            with col_r:
+                df['Date'] = df['Timestamp'].dt.date
+                timeline = df.groupby('Date').size().reset_index(name='Posts')
+                fig_line = px.line(timeline, x='Date', y='Posts')
+                st.plotly_chart(fig_line, use_container_width=True)
+
+            st.divider()
+
+            st.dataframe(
+                df[['Timestamp', 'Username', 'Content', 'Sentiment', 'Magnitude']],
+                use_container_width=True,
+                hide_index=True
+            )
         else:
-            st.info("No data yet.")
+            st.info("No data available.")
 
     # TAB 2
     with tab2:
