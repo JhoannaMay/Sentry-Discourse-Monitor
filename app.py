@@ -6,6 +6,10 @@ from yaml.loader import SafeLoader
 import streamlit_authenticator as stauth
 from datetime import datetime
 from streamlit_autorefresh import st_autorefresh
+import sys
+import importlib
+import pkg_resources
+st.write("Authenticator version:", pkg_resources.get_distribution("streamlit-authenticator").version)
 
 # Import your custom modules
 from utils.analyzer import load_sentiment_model, get_sentiment_roberta
