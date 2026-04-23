@@ -67,16 +67,20 @@ authenticator = stauth.Authenticate(
 )
 
 authenticator.login(location='main')
+auth_status = st.session_state.get("authentication_status")
+name = st.session_state.get("name")
+username = st.session_state.get("username")
 
-if st.session_state["authentication_status"] is False:
+if auth_status is False:
     st.error('Username/password is incorrect')
-elif st.session_state["authentication_status"] is None:
+elif auth_status is None:
     st.warning('Please enter your username and password')
-elif st.session_state["authentication_status"]:
-    # Now you are logged in
+elif auth_status:
+    # Render the logout button
+    # In v0.4.x, the arguments are: button_name, location, key
     authenticator.logout('Logout', 'main')
-    st.write(f'Welcome *{st.session_state["name"]}*')
-
+    
+st.write(f'Welcome *{name}*')
 
 st.sidebar.title(f"Welcome, {name}")
 authenticator.logout("Logout", "sidebar")
