@@ -52,7 +52,7 @@ try:
 except Exception:
     df = pd.DataFrame()
 
-# --- 1. AUTHENTICATION SETUP ---
+# --- AUTHENTICATION SETUP ---
 with open('config.yaml') as file:
     config = yaml.load(file, Loader=SafeLoader)
 
@@ -64,131 +64,130 @@ authenticator = stauth.Authenticate(
 )
 
 # --- 2. RENDER LOGIN WIDGET ---
-# Uses the required location parameter for v0.4.x
 authenticator.login(location='main')
 
-# --- 3. MAIN APP LOGIC (WRAPPED IN AUTH CHECK) ---
-# This fixes NameErrors by ensuring variables like 'name' aren't used until login is successful
+# =========================
+# ✅ FIXED AUTH CONTROL
+# =========================
 if st.session_state.get("authentication_status"):
-    
+
     # Sidebar Setup
     st.sidebar.title(f"Welcome, {st.session_state['name']}")
-    # FIXED: Added unique key to prevent DuplicateElementKey error
     authenticator.logout("Logout", "sidebar", key="unique_sidebar_logout")
     st.sidebar.markdown("---")
 
-if st.session_state.new_post_count > 0 and not df.empty:
-    with st.sidebar.popover(f"🔔 Notifications ({st.session_state.new_post_count})", use_container_width=True):
-        st.markdown("### Recent Intelligence")
-        recent_hits = df.sort_values(by='Timestamp', ascending=False).head(st.session_state.new_post_count)
-        
-        for _, row in recent_hits.iterrows():
-            time_label = get_time_ago(row['Timestamp'])
-            cols = st.columns([0.2, 0.8])
-            with cols[0]:
-                icon = {"Negative": "🚨", "Sarcasm": "🧐", "Positive": "✅"}.get(row['Sentiment'], "📄")
-                st.write(icon)
-            with cols[1]:
-                st.markdown(f"**{row['Username']}**")
-                st.caption(f"{row['Content'][:45]}... • {time_label}")
-            st.divider()
-        
-        if st.button("Mark all as Read", use_container_width=True):
-            st.session_state.new_post_count = 0
-            st.rerun()
+    # =========================
+    # EVERYTHING BELOW IS NOW PROTECTED
+    # =========================
 
-subreddit = st.sidebar.text_input("Subreddit", "exiglesianicristo")
-
-if subreddit:
-    raw_posts = fetch_recent_posts(subreddit, limit=10)
-    if raw_posts:
-        auto_new = []
-        new_entries = []
-        for p in raw_posts:
-            if not df.empty and p['Content'] in df['Content'].values:
-                continue
+    if st.session_state.new_post_count > 0 and not df.empty:
+        with st.sidebar.popover(f"🔔 Notifications ({st.session_state.new_post_count})", use_container_width=True):
+            st.markdown("### Recent Intelligence")
+            recent_hits = df.sort_values(by='Timestamp', ascending=False).head(st.session_state.new_post_count)
             
-            intel = get_sentiment_roberta(p['Content'], sentiment_model)
-            topic_data = classify_topics_ai(p['Content'], topic_classifier)
+            for _, row in recent_hits.iterrows():
+                time_label = get_time_ago(row['Timestamp'])
+                cols = st.columns([0.2, 0.8])
+                with cols[0]:
+                    icon = {"Negative": "🚨", "Sarcasm": "🧐", "Positive": "✅"}.get(row['Sentiment'], "📄")
+                    st.write(icon)
+                with cols[1]:
+                    st.markdown(f"**{row['Username']}**")
+                    st.caption(f"{row['Content'][:45]}... • {time_label}")
+                st.divider()
             
-            final_sent = detect_sarcasm(p['Content'], intel['Sentiment'])
-            
-            p.update({
-                'Sentiment': final_sent,
-                'Magnitude': intel['Magnitude'],
-                'Explanation': intel.get('Explanation', ''),
-                'Primary_Topic': topic_data['Primary']
-            })
-            new_entries.append(p)
+            if st.button("Mark all as Read", use_container_width=True):
+                st.session_state.new_post_count = 0
+                st.rerun()
 
-        if auto_new:
-            st.session_state.new_post_count += len(auto_new)
-            
-            st.toast(f"{len(auto_new)} new intelligence entries detected!")
-            
-            new_df = pd.DataFrame(auto_new)
-            df = pd.concat([df, new_df]).drop_duplicates(subset=['Content'])
-            df.to_csv("sentry_history.csv", index=False)
-        else:
-            # 4. Show the "Up to Date" Toast
-            st.toast("Scan complete: Database is up to date.")
+    subreddit = st.sidebar.text_input("Subreddit", "exiglesianicristo")
 
-        if new_entries:
-            new_df = pd.DataFrame(new_entries)
-            df = pd.concat([df, new_df]).drop_duplicates(subset=['Content'])
-            df.to_csv("sentry_history.csv", index=False)
-            st.session_state.new_post_count = len(new_entries)
-
-
-if st.sidebar.button("Fetch & Analyze Fresh Data"):
-    with st.status(f"Manual Scan: r/{subreddit}...", expanded=True) as status:
-        manual_posts = fetch_recent_posts(subreddit, limit=25) 
-        if manual_posts:
-            manual_new = []
-            for p in manual_posts:
+    if subreddit:
+        raw_posts = fetch_recent_posts(subreddit, limit=10)
+        if raw_posts:
+            auto_new = []
+            new_entries = []
+            for p in raw_posts:
                 if not df.empty and p['Content'] in df['Content'].values:
                     continue
                 
-                st.write(f"Analyzing: {p['Content'][:30]}...")
                 intel = get_sentiment_roberta(p['Content'], sentiment_model)
                 topic_data = classify_topics_ai(p['Content'], topic_classifier)
                 
+                final_sent = detect_sarcasm(p['Content'], intel['Sentiment'])
+                
                 p.update({
-                    'Sentiment': detect_sarcasm(p['Content'], intel['Sentiment']),
+                    'Sentiment': final_sent,
                     'Magnitude': intel['Magnitude'],
                     'Explanation': intel.get('Explanation', ''),
                     'Primary_Topic': topic_data['Primary']
                 })
-                manual_new.append(p)
-            
-            if manual_new:
-                new_df = pd.DataFrame(manual_new)
+                new_entries.append(p)
+
+            if auto_new:
+                st.session_state.new_post_count += len(auto_new)
+                st.toast(f"{len(auto_new)} new intelligence entries detected!")
+                
+                new_df = pd.DataFrame(auto_new)
                 df = pd.concat([df, new_df]).drop_duplicates(subset=['Content'])
                 df.to_csv("sentry_history.csv", index=False)
-                st.session_state.new_post_count += len(manual_new)
-                status.update(label="Manual Sync Complete!", state="complete")
-                st.rerun()
             else:
-                status.update(label="Already up to date.", state="complete")
-        else:
-            st.sidebar.warning("No posts found.")
-st.sidebar.divider()
-st.sidebar.caption(f"System Heartbeat: {datetime.now().strftime('%I:%M %p')}")
-st.sidebar.caption("Auto-refresh active (5m interval)")
-# =========================
-#  MAIN DASHBOARD UI
-# =========================
-st.markdown("""
-<style>
-.header-container { background-color: #0b1220; padding: 20px; border-radius: 10px; margin-bottom: 20px; }
-.header-title { font-size: 28px; font-weight: 700; color: white; }
-</style>
-""", unsafe_allow_html=True)
-st.markdown('<div class="header-container"><span class="header-title">🛡️ Sentinel-D: Intelligence Dashboard</span></div>', unsafe_allow_html=True)
+                st.toast("Scan complete: Database is up to date.")
 
-tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
-    "Overview", "Users", "Sentiment Intel", "High Activity", "Topic Analysis", "Archive"
-])
+            if new_entries:
+                new_df = pd.DataFrame(new_entries)
+                df = pd.concat([df, new_df]).drop_duplicates(subset=['Content'])
+                df.to_csv("sentry_history.csv", index=False)
+                st.session_state.new_post_count = len(new_entries)
+
+    if st.sidebar.button("Fetch & Analyze Fresh Data"):
+        with st.status(f"Manual Scan: r/{subreddit}...", expanded=True) as status:
+            manual_posts = fetch_recent_posts(subreddit, limit=25) 
+            if manual_posts:
+                manual_new = []
+                for p in manual_posts:
+                    if not df.empty and p['Content'] in df['Content'].values:
+                        continue
+                    
+                    st.write(f"Analyzing: {p['Content'][:30]}...")
+                    intel = get_sentiment_roberta(p['Content'], sentiment_model)
+                    topic_data = classify_topics_ai(p['Content'], topic_classifier)
+                    
+                    p.update({
+                        'Sentiment': detect_sarcasm(p['Content'], intel['Sentiment']),
+                        'Magnitude': intel['Magnitude'],
+                        'Explanation': intel.get('Explanation', ''),
+                        'Primary_Topic': topic_data['Primary']
+                    })
+                    manual_new.append(p)
+                
+                if manual_new:
+                    new_df = pd.DataFrame(manual_new)
+                    df = pd.concat([df, new_df]).drop_duplicates(subset=['Content'])
+                    df.to_csv("sentry_history.csv", index=False)
+                    st.session_state.new_post_count += len(manual_new)
+                    status.update(label="Manual Sync Complete!", state="complete")
+                    st.rerun()
+                else:
+                    status.update(label="Already up to date.", state="complete")
+            else:
+                st.sidebar.warning("No posts found.")
+
+    st.sidebar.divider()
+    st.sidebar.caption(f"System Heartbeat: {datetime.now().strftime('%I:%M %p')}")
+    st.sidebar.caption("Auto-refresh active (5m interval)")
+
+    # =========================
+    # MAIN DASHBOARD UI
+    # =========================
+    st.markdown("""<style>.header-container { background-color: #0b1220; padding: 20px; border-radius: 10px; margin-bottom: 20px; }
+    .header-title { font-size: 28px; font-weight: 700; color: white; }</style>""", unsafe_allow_html=True)
+
+    st.markdown('<div class="header-container"><span class="header-title">🛡️ Sentinel-D: Intelligence Dashboard</span></div>', unsafe_allow_html=True)
+
+    tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
+        "Overview", "Users", "Sentiment Intel", "High Activity", "Topic Analysis", "Archive"
+    ])
 
 with tab1:
     if not df.empty:
@@ -310,3 +309,9 @@ with tab6:
             df.to_csv("sentry_history.csv", index=False)
             st.success("Database refined!")
             st.rerun()
+
+    elif st.session_state.get("authentication_status") is False:
+      st.error("Username/password is incorrect")
+
+    else:
+        st.warning("Please enter your username and password")
