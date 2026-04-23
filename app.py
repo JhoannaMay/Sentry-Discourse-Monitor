@@ -7,11 +7,13 @@ import streamlit_authenticator as stauth
 from datetime import datetime
 from streamlit_autorefresh import st_autorefresh
 
+
 # --- IMPORT UTILS ---
 from utils.analyzer import load_sentiment_model, get_sentiment_roberta
 from utils.processor import calculate_fis
 from utils.reddit_client import fetch_recent_posts
 from utils.ai_topic_classifier import load_topic_model, classify_topics_ai
+
 
 # =========================
 # 1. SETTINGS & REFRESH
@@ -120,6 +122,7 @@ subreddit = st.sidebar.text_input("Subreddit", "exiglesianicristo")
 if subreddit:
     raw_posts = fetch_recent_posts(subreddit, limit=10)
     if raw_posts:
+        auto_new = []
         new_entries = []
         for p in raw_posts:
             # Check if post already exists in history to avoid re-analyzing
@@ -140,7 +143,22 @@ if subreddit:
                 'Primary_Topic': topic_data['Primary']
             })
             new_entries.append(p)
-        
+
+        if auto_new:
+            # 1. Update the session state count
+            st.session_state.new_post_count += len(auto_new)
+            
+            # 2. Show the "New Data" Toast
+            st.toast(f"🚨 {len(auto_new)} new intelligence entries detected!")
+            
+            # 3. Save to CSV
+            new_df = pd.DataFrame(auto_new)
+            df = pd.concat([df, new_df]).drop_duplicates(subset=['Content'])
+            df.to_csv("sentry_history.csv", index=False)
+        else:
+            # 4. Show the "Up to Date" Toast
+            st.toast("🔍 Scan complete: Database is up to date.")
+
         if new_entries:
             new_df = pd.DataFrame(new_entries)
             df = pd.concat([df, new_df]).drop_duplicates(subset=['Content'])
