@@ -9,7 +9,6 @@ from streamlit_autorefresh import st_autorefresh
 import sys
 import importlib
 import pkg_resources
-st.write("Authenticator version:", pkg_resources.get_distribution("streamlit-authenticator").version)
 
 # Import your custom modules
 from utils.analyzer import load_sentiment_model, get_sentiment_roberta
@@ -193,9 +192,9 @@ if st.session_state.get("authentication_status"):
         "Overview", "Users", "Sentiment Intel", "High Activity", "Topic Analysis", "Archive"
     ])
 
-with tab1:
-    if not df.empty:
-        counts = df['Sentiment'].value_counts()
+    with tab1:
+        if not df.empty:
+         counts = df['Sentiment'].value_counts()
         c1, c2, c3, c4 = st.columns(4)
         c1.metric("🔴 Negative", counts.get('Negative', 0))
         c2.metric("🟣 Sarcasm", counts.get('Sarcasm', 0))
@@ -238,15 +237,14 @@ with tab1:
             use_container_width=True,
             hide_index=True
         )
-    else:
+        else:
         st.info("The feed is currently empty. Fetch some data from the sidebar to begin.")
 
 
-with tab2:
-
-    if not df.empty:
-        user_analysis = calculate_fis(df)
-        if not user_analysis.empty:
+    with tab2:
+         if not df.empty:
+            user_analysis = calculate_fis(df)
+         if not user_analysis.empty:
             c_sel, c_met = st.columns([1, 2])
             with c_sel:
                 sel_user = st.selectbox("Search/Select User", user_analysis['Username'])
@@ -314,8 +312,11 @@ with tab6:
             st.success("Database refined!")
             st.rerun()
 
-    elif st.session_state.get("authentication_status") is False:
-      st.error("Username/password is incorrect")
 
-    else:
-        st.warning("Please enter your username and password")
+
+
+if st.session_state.get("authentication_status") is False:
+    st.error("Username/password is incorrect")
+
+elif st.session_state.get("authentication_status") is None:
+    st.warning("Please enter your username and password")
