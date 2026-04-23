@@ -68,12 +68,14 @@ authenticator = stauth.Authenticate(
 
 authenticator.login(location='main')
 
-if auth_status is False:
-    st.error("Incorrect credentials")
-    st.stop()
-elif auth_status is None:
-    st.warning("Please enter your credentials to access the system")
-    st.stop()
+if st.session_state["authentication_status"] is False:
+    st.error('Username/password is incorrect')
+elif st.session_state["authentication_status"] is None:
+    st.warning('Please enter your username and password')
+elif st.session_state["authentication_status"]:
+    # Now you are logged in
+    authenticator.logout('Logout', 'main')
+    st.write(f'Welcome *{st.session_state["name"]}*')
 
 
 st.sidebar.title(f"Welcome, {name}")
