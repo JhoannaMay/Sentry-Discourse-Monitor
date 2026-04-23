@@ -58,12 +58,9 @@ except Exception:
     df = pd.DataFrame()
 
 
-# 1. Load the config file
 with open('config.yaml') as file:
     config = yaml.load(file, Loader=SafeLoader)
 
-# 2. Initialize the authenticator 
-# In v0.4.2, 'pre-authorized' is optional, but it's safer to use .get()
 authenticator = stauth.Authenticate(
     config['credentials'],
     config['cookie']['name'],
@@ -71,29 +68,14 @@ authenticator = stauth.Authenticate(
     config['cookie']['expiry_days']
 )
 
-# 3. Render the login widget
-# Using the new syntax: location must be 'main', 'sidebar', or 'unrendered'
+# Render Login Widget
 authenticator.login(location='main')
 
-# 4. BRIDGE VARIABLES: This fixes the NameErrors in the rest of your app
+# Bridge Variables
 auth_status = st.session_state.get("authentication_status")
 name = st.session_state.get("name")
 username = st.session_state.get("username")
 
-# 5. Handle Authentication Logic
-if auth_status:
-    # Logic for successful login
-    authenticator.logout('Logout', 'main')
-    st.write(f'Welcome *{name}*')
-    
-    # --- YOUR ACTUAL APP CODE STARTS HERE ---
-    st.title("My Dashboard")
-    # ... everything else you built ...
-
-elif auth_status is False:
-    st.error('Username/password is incorrect')
-elif auth_status is None:
-    st.warning('Please enter your username and password')
 
 st.sidebar.title(f"Welcome, {name}")
 authenticator.logout("Logout", "sidebar")
