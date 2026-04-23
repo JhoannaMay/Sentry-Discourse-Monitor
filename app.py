@@ -23,7 +23,7 @@ st.set_page_config(page_title="Sentinel-D: Intelligence System", layout="wide")
 if 'new_post_count' not in st.session_state:
     st.session_state.new_post_count = 0
 
-# =========================
+# ========================= 
 # 2. HELPER FUNCTIONS
 # =========================
 def get_time_ago(timestamp):
@@ -115,49 +115,70 @@ if st.session_state.new_post_count > 0 and not df.empty:
 # Side Bar (Fetch)
 subreddit = st.sidebar.text_input("Subreddit", "exiglesianicristo")
 
+# --- START AUTO-FETCH TRIGGER ---
+# This block runs every time the 5-minute refresh happens
+if subreddit:
+    raw_posts = fetch_recent_posts(subreddit, limit=10)
+    if raw_posts:
+        new_entries = []
+        for p in raw_posts:
+            # Check if post already exists in history to avoid re-analyzing
+            if not df.empty and p['Content'] in df['Content'].values:
+                continue
+            
+            # Analyze only truly new posts
+            intel = get_sentiment_roberta(p['Content'], sentiment_model)
+            topic_data = classify_topics_ai(p['Content'], topic_classifier)
+            
+            # Apply Sarcasm Check
+            final_sent = detect_sarcasm(p['Content'], intel['Sentiment'])
+            
+            p.update({
+                'Sentiment': final_sent,
+                'Magnitude': intel['Magnitude'],
+                'Explanation': intel.get('Explanation', ''),
+                'Primary_Topic': topic_data['Primary']
+            })
+            new_entries.append(p)
+        
+        if new_entries:
+            new_df = pd.DataFrame(new_entries)
+            df = pd.concat([df, new_df]).drop_duplicates(subset=['Content'])
+            df.to_csv("sentry_history.csv", index=False)
+            st.session_state.new_post_count = len(new_entries)
+# --- END AUTO-FETCH TRIGGER ---
 if st.sidebar.button("📡 Fetch & Analyze Fresh Data"):
-    posts = fetch_recent_posts(subreddit, limit=50) 
-    
-    if posts:
-        new_list = []
-        with st.status(f"🔍 Scanning r/{subreddit}...", expanded=True) as status:
-            for p in posts:
+    with st.status(f"🔍 Manual Scan: r/{subreddit}...", expanded=True) as status:
+        manual_posts = fetch_recent_posts(subreddit, limit=25) # Higher limit for manual
+        if manual_posts:
+            manual_new = []
+            for p in manual_posts:
                 if not df.empty and p['Content'] in df['Content'].values:
-                    continue 
+                    continue
                 
-                st.write(f"New Intel Found: {p['Content'][:30]}...")
-                
-                # 1. Get raw AI Sentiment
+                st.write(f"Analyzing: {p['Content'][:30]}...")
                 intel = get_sentiment_roberta(p['Content'], sentiment_model)
                 topic_data = classify_topics_ai(p['Content'], topic_classifier)
                 
-                # 2. 🔥 APPLY SARCASM LOGIC HERE
-                # This uses the helper function we defined at the top of the file
-                final_sentiment = detect_sarcasm(p['Content'], intel['Sentiment'])
-                
                 p.update({
-                    'Sentiment': final_sentiment, # Use the refined sentiment
+                    'Sentiment': detect_sarcasm(p['Content'], intel['Sentiment']),
                     'Magnitude': intel['Magnitude'],
-                    'Primary_Topic': topic_data['Primary'],
-                    'Subreddit_Source': subreddit 
+                    'Explanation': intel.get('Explanation', ''),
+                    'Primary_Topic': topic_data['Primary']
                 })
-                new_list.append(p)
+                manual_new.append(p)
             
-            status.update(label="✅ Scan Complete!", state="complete")
-
-        if new_list:
-            new_df = pd.DataFrame(new_list)
-            df = pd.concat([df, new_df]).drop_duplicates(subset=['Content'])
-            df.to_csv("sentry_history.csv", index=False)
-            
-            st.session_state.new_post_count = len(new_list)
-            st.sidebar.success(f"Added {len(new_list)} new entries from r/{subreddit}!")
-            st.rerun()
+            if manual_new:
+                new_df = pd.DataFrame(manual_new)
+                df = pd.concat([df, new_df]).drop_duplicates(subset=['Content'])
+                df.to_csv("sentry_history.csv", index=False)
+                st.session_state.new_post_count += len(manual_new)
+                status.update(label="✅ Manual Sync Complete!", state="complete")
+                st.rerun()
+            else:
+                status.update(label="✨ Already up to date.", state="complete")
         else:
-            st.sidebar.info(f"✨ r/{subreddit} is already up to date.")
-    else:
-        st.sidebar.warning(f"📭 No posts found in r/{subreddit}.")
-
+            st.sidebar.warning("No posts found.")
 st.sidebar.divider()
 st.sidebar.caption(f"🕒 System Heartbeat: {datetime.now().strftime('%I:%M %p')}")
 st.sidebar.caption("♻️ Auto-refresh active (5m interval)")
