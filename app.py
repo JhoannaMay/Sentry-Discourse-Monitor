@@ -83,11 +83,21 @@ authenticator.login(location='main')
 # =========================
 if st.session_state.get("authentication_status"):
 
+    # Sidebar
     st.sidebar.title(f"Welcome, {st.session_state['name']}")
     authenticator.logout("Logout", "sidebar", key="logout_btn")
     st.sidebar.markdown("---")
 
-    # Sidebar
+    # Notifications
+    if st.session_state.new_post_count > 0 and not df.empty:
+        with st.sidebar.popover(f"🔔 Notifications ({st.session_state.new_post_count})"):
+            recent_hits = df.sort_values(by='Timestamp', ascending=False).head(st.session_state.new_post_count)
+            for _, row in recent_hits.iterrows():
+                st.markdown(f"**{row['Username']}** - {row['Content'][:40]}...")
+            if st.button("Mark all as Read"):
+                st.session_state.new_post_count = 0
+                st.rerun()
+
     subreddit = st.sidebar.text_input("Subreddit", "exiglesianicristo")
 
     if subreddit:
@@ -104,6 +114,7 @@ if st.session_state.get("authentication_status"):
                 p.update({
                     'Sentiment': detect_sarcasm(p['Content'], intel['Sentiment']),
                     'Magnitude': intel['Magnitude'],
+                    'Explanation': intel.get('Explanation', ''),
                     'Primary_Topic': topic_data['Primary']
                 })
 
@@ -113,9 +124,6 @@ if st.session_state.get("authentication_status"):
                 df = pd.concat([df, pd.DataFrame(new_entries)]).drop_duplicates(subset=['Content'])
                 df.to_csv("sentry_history.csv", index=False)
                 st.session_state.new_post_count = len(new_entries)
-
-    st.sidebar.divider()
-    st.sidebar.caption(f"System Time: {datetime.now().strftime('%I:%M %p')}")
 
     # =========================
     # DASHBOARD
@@ -127,107 +135,100 @@ if st.session_state.get("authentication_status"):
         "High Activity", "Topic Analysis", "Archive"
     ])
 
-    # -------- TAB 1 --------
+    # =========================
+    # TAB 1: OVERVIEW
+    # =========================
     with tab1:
         if not df.empty:
             counts = df['Sentiment'].value_counts()
+
             c1, c2, c3, c4 = st.columns(4)
-            c1.metric("Negative", counts.get('Negative', 0))
-            c2.metric("Sarcasm", counts.get('Sarcasm', 0))
-            c3.metric("Neutral", counts.get('Neutral', 0))
-            c4.metric("Positive", counts.get('Positive', 0))
+            c1.metric("🔴 Negative", counts.get('Negative', 0))
+            c2.metric("🟣 Sarcasm", counts.get('Sarcasm', 0))
+            c3.metric("🔵 Neutral", counts.get('Neutral', 0))
+            c4.metric("🟢 Positive", counts.get('Positive', 0))
 
             st.divider()
 
-            col1, col2 = st.columns(2)
+            col_l, col_r = st.columns(2)
 
-            with col1:
-                st.plotly_chart(px.pie(df, names='Sentiment'), use_container_width=True)
+            with col_l:
+                fig_pie = px.pie(df, names='Sentiment', hole=0.4)
+                st.plotly_chart(fig_pie, use_container_width=True)
 
-            with col2:
+            with col_r:
                 df['Date'] = df['Timestamp'].dt.date
                 timeline = df.groupby('Date').size().reset_index(name='Posts')
-                st.plotly_chart(px.line(timeline, x='Date', y='Posts'), use_container_width=True)
-        else:
-            st.info("No data yet.")
+                fig_line = px.line(timeline, x='Date', y='Posts')
+                st.plotly_chart(fig_line, use_container_width=True)
 
-    # -------- TAB 2 --------
+            st.divider()
+
+            st.dataframe(
+                df[['Timestamp', 'Username', 'Content', 'Sentiment', 'Magnitude']],
+                use_container_width=True,
+                hide_index=True
+            )
+        else:
+            st.info("No data available.")
+
+    # =========================
+    # TAB 2: USERS (FIS)
+    # =========================
     with tab2:
         if not df.empty:
             user_analysis = calculate_fis(df)
             if not user_analysis.empty:
-             c_sel, c_met = st.columns([1, 2])
-            with c_sel:
-                sel_user = st.selectbox("Search/Select User", user_analysis['Username'])
+                sel_user = st.selectbox("Select User", user_analysis['Username'])
                 u_data = user_analysis[user_analysis['Username'] == sel_user].iloc[0]
+
                 st.metric("Avg Magnitude", u_data['Avg_Magnitude'])
                 st.metric("FIS Score", u_data['FIS_Score'])
-            with c_met:
-                st.dataframe(user_analysis, use_container_width=True, hide_index=True)
 
-            st.divider()
-            st.markdown(f"Post History for `{sel_user}`")
-            u_hist = df[df['Username'] == sel_user].sort_values(by='Timestamp', ascending=False)
-            st.dataframe(u_hist[['Content', 'Sentiment', 'Magnitude', 'Timestamp']], use_container_width=True, hide_index=True)
+                st.dataframe(user_analysis, use_container_width=True)
 
-
-    # -------- TAB 3 --------
+    # =========================
+    # TAB 3: SENTIMENT INTEL
+    # =========================
     with tab3:
-         st.subheader("Sentiment Intelligence (Explainable AI)")
-         if not df.empty:
-          cols_to_show = ['Username', 'Content', 'Sentiment', 'Intent', 'Magnitude', 'Explanation']
-          available_cols = [c for c in cols_to_show if c in df.columns]
+        if not df.empty:
+            st.dataframe(
+                df[['Username', 'Content', 'Sentiment', 'Magnitude', 'Explanation']],
+                use_container_width=True
+            )
 
-         st.dataframe(
-            df[available_cols], 
-            column_config={
-
-                "Magnitude": st.column_config.ProgressColumn("Confidence", min_value=0, max_value=1),
-                "Intent": st.column_config.TextColumn("User Intent", help="The possible goal of the user's post"),
-                "Content": st.column_config.TextColumn("Content", width="large")
-
-            },
-            use_container_width=True, hide_index=True)
-
-    # -------- TAB 4 --------
+    # =========================
+    # TAB 4: HIGH ACTIVITY
+    # =========================
     with tab4:
-        st.subheader("High Activity Posts")
         if not df.empty:
-         high_act = df[(df['Upvotes'] >= 30) | (df['Comment_Count'] >= 10)]
-        st.dataframe(high_act[['Username', 'Content', 'Upvotes', 'Comment_Count', 'Sentiment']], use_container_width=True, hide_index=True)
+            high = df[(df['Upvotes'] >= 30) | (df['Comment_Count'] >= 10)]
+            st.dataframe(high, use_container_width=True)
 
-
-    # -------- TAB 5 --------
+    # =========================
+    # TAB 5: TOPIC ANALYSIS
+    # =========================
     with tab5:
-        st.subheader("Topic Analysis")
         if not df.empty:
-         t_sel = st.selectbox("Filter Topic", ["All"] + list(df['Primary_Topic'].unique()))
-         f_df = df if t_sel == "All" else df[df['Primary_Topic'] == t_sel]
-        st.dataframe(f_df[['Username', 'Content', 'Primary_Topic', 'Sentiment']], use_container_width=True, hide_index=True)  
+            topic = st.selectbox("Filter Topic", ["All"] + list(df['Primary_Topic'].unique()))
+            filtered = df if topic == "All" else df[df['Primary_Topic'] == topic]
+            st.dataframe(filtered, use_container_width=True)
 
-    # -------- TAB 6 --------
+    # =========================
+    # TAB 6: ARCHIVE
+    # =========================
     with tab6:
-        st.subheader("Archive")
         if not df.empty:
-         edited_df = st.data_editor(
-            df[['Username', 'Content', 'Sentiment', 'Magnitude', 'Timestamp']], 
-            column_config={
-                "Username": st.column_config.TextColumn("User", disabled=True),
-                "Content": st.column_config.TextColumn("Content", width="large", disabled=True),
-                "Magnitude": st.column_config.NumberColumn("Magnitude", disabled=True, format="%.2f"),
-                "Timestamp": st.column_config.DatetimeColumn("Timestamp", disabled=True),
-                "Sentiment": st.column_config.SelectboxColumn(
-                    "Sentiment", options=["Negative", "Sarcasm", "Neutral", "Positive"]
-                )
-            },
-            hide_index=True, use_container_width=True, key="archive_editor"
-        )
-        
-        if st.button("Save Manual Corrections"):
-            df.update(edited_df)
-            df.to_csv("sentry_history.csv", index=False)
-            st.success("Database refined!")
-            st.rerun()
+            edited_df = st.data_editor(
+                df[['Username', 'Content', 'Sentiment', 'Magnitude', 'Timestamp']],
+                use_container_width=True
+            )
+
+            if st.button("Save Manual Corrections"):
+                df.update(edited_df)
+                df.to_csv("sentry_history.csv", index=False)
+                st.success("Saved!")
+                st.rerun()
 
 # =========================
 # AUTH STATES
