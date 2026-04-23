@@ -60,10 +60,13 @@ except Exception:
 
 with open('config.yaml') as file:
     config = yaml.load(file, Loader=SafeLoader)
-
+    
 authenticator = stauth.Authenticate(
-    config['credentials'], config['cookie']['name'],
-    config['cookie']['key'], config['cookie']['expiry_days']
+    config['credentials'],
+    config['cookie']['name'],
+    config['cookie']['key'],
+    config['cookie']['expiry_days'],
+    config.get('pre-authorized') # Add this line
 )
 
 authenticator.login(location='main')
