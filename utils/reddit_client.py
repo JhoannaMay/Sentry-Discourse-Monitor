@@ -42,11 +42,9 @@ def fetch_recent_posts(subreddit_name, limit=10):
             local_time = utc_time.replace(tzinfo=pytz.utc).astimezone(local_tz)
             
             is_relevant = False
-            # TRUSTED RULE: Skip filter for dedicated sub
             if clean_name.lower() in ['exiglesianicristo', 'inc_secrets']:
                 is_relevant = True
             else:
-                # STRICT RULE: Apply filter for general subs
                 for key in strict_keywords:
                     if re.search(r'\b' + re.escape(key) + r'\b', content_lower):
                         is_relevant = True

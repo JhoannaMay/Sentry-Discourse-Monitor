@@ -11,7 +11,7 @@ def log_audit(username, content, ai_sentiment, human_sentiment, notes=""):
     new_entry = pd.DataFrame([{
         'Timestamp': pd.Timestamp.now(),
         'Username': username,
-        'Content': content[:100], # Snippet for reference
+        'Content': content[:100], 
         'AI_Label': ai_sentiment,
         'Human_Label': human_sentiment,
         'Is_Correct': is_correct,

@@ -8,26 +8,20 @@ from datetime import datetime
 from streamlit_autorefresh import st_autorefresh
 
 
-# --- IMPORT UTILS ---
+
 from utils.analyzer import load_sentiment_model, get_sentiment_roberta
 from utils.processor import calculate_fis
 from utils.reddit_client import fetch_recent_posts
 from utils.ai_topic_classifier import load_topic_model, classify_topics_ai
 
 
-# =========================
-# 1. SETTINGS & REFRESH
-# =========================
 st_autorefresh(interval=300000, key="sentinel_refresh")
 st.set_page_config(page_title="Sentinel-D: Intelligence System", layout="wide")
 
-# Initialize session state for notifications
+
 if 'new_post_count' not in st.session_state:
     st.session_state.new_post_count = 0
 
-# ========================= 
-# 2. HELPER FUNCTIONS
-# =========================
 def get_time_ago(timestamp):
     now = datetime.now()
     if isinstance(timestamp, str):
@@ -43,17 +37,14 @@ def get_time_ago(timestamp):
 
 def detect_sarcasm(text, raw_label):
     """Simple keyword check to flip Positive results to Sarcasm."""
-    sarcasm_triggers = ["pala", "wow", "talaga", "claps", "naman"]
+    sarcasm_triggers = ["pala", "wow", "talaga", "claps", "naman", "daw"]
     text_lower = text.lower()
     if raw_label == "Positive" and any(word in text_lower for word in sarcasm_triggers):
         return "Sarcasm"
     return raw_label
 
-# =========================
-# 3. 🤖 LOAD MODELS & DATA (Moved UP to prevent NameErrors)
-# =========================
+
 with st.spinner("Initializing Intelligence Engines..."):
-    # This ensures 'sentiment_model' and 'topic_classifier' are ready before any UI runs
     topic_classifier = load_topic_model()
     sentiment_model = load_sentiment_model()
 
@@ -66,9 +57,7 @@ try:
 except Exception:
     df = pd.DataFrame()
 
-# =========================
-# 4. 🔐 AUTHENTICATION
-# =========================
+
 with open('config.yaml') as file:
     config = yaml.load(file, Loader=SafeLoader)
 
@@ -86,14 +75,11 @@ elif auth_status is None:
     st.warning("Please enter your credentials to access the system")
     st.stop()
 
-# =========================
-# 5. 👈 SIDEBAR TOOLS & NOTIFICATIONS
-# =========================
+
 st.sidebar.title(f"Welcome, {name}")
 authenticator.logout("Logout", "sidebar")
 st.sidebar.markdown("---")
 
-# --- 🔔 NOTIFICATION CENTER ---
 if st.session_state.new_post_count > 0 and not df.empty:
     with st.sidebar.popover(f"🔔 Notifications ({st.session_state.new_post_count})", use_container_width=True):
         st.markdown("### Recent Intelligence")
@@ -114,26 +100,20 @@ if st.session_state.new_post_count > 0 and not df.empty:
             st.session_state.new_post_count = 0
             st.rerun()
 
-# Side Bar (Fetch)
 subreddit = st.sidebar.text_input("Subreddit", "exiglesianicristo")
 
-# --- START AUTO-FETCH TRIGGER ---
-# This block runs every time the 5-minute refresh happens
 if subreddit:
     raw_posts = fetch_recent_posts(subreddit, limit=10)
     if raw_posts:
         auto_new = []
         new_entries = []
         for p in raw_posts:
-            # Check if post already exists in history to avoid re-analyzing
             if not df.empty and p['Content'] in df['Content'].values:
                 continue
             
-            # Analyze only truly new posts
             intel = get_sentiment_roberta(p['Content'], sentiment_model)
             topic_data = classify_topics_ai(p['Content'], topic_classifier)
             
-            # Apply Sarcasm Check
             final_sent = detect_sarcasm(p['Content'], intel['Sentiment'])
             
             p.update({
@@ -145,29 +125,27 @@ if subreddit:
             new_entries.append(p)
 
         if auto_new:
-            # 1. Update the session state count
             st.session_state.new_post_count += len(auto_new)
             
-            # 2. Show the "New Data" Toast
-            st.toast(f"🚨 {len(auto_new)} new intelligence entries detected!")
+            st.toast(f"{len(auto_new)} new intelligence entries detected!")
             
-            # 3. Save to CSV
             new_df = pd.DataFrame(auto_new)
             df = pd.concat([df, new_df]).drop_duplicates(subset=['Content'])
             df.to_csv("sentry_history.csv", index=False)
         else:
             # 4. Show the "Up to Date" Toast
-            st.toast("🔍 Scan complete: Database is up to date.")
+            st.toast("Scan complete: Database is up to date.")
 
         if new_entries:
             new_df = pd.DataFrame(new_entries)
             df = pd.concat([df, new_df]).drop_duplicates(subset=['Content'])
             df.to_csv("sentry_history.csv", index=False)
             st.session_state.new_post_count = len(new_entries)
-# --- END AUTO-FETCH TRIGGER ---
-if st.sidebar.button("📡 Fetch & Analyze Fresh Data"):
-    with st.status(f"🔍 Manual Scan: r/{subreddit}...", expanded=True) as status:
-        manual_posts = fetch_recent_posts(subreddit, limit=25) # Higher limit for manual
+
+
+if st.sidebar.button("Fetch & Analyze Fresh Data"):
+    with st.status(f"Manual Scan: r/{subreddit}...", expanded=True) as status:
+        manual_posts = fetch_recent_posts(subreddit, limit=25) 
         if manual_posts:
             manual_new = []
             for p in manual_posts:
@@ -191,17 +169,17 @@ if st.sidebar.button("📡 Fetch & Analyze Fresh Data"):
                 df = pd.concat([df, new_df]).drop_duplicates(subset=['Content'])
                 df.to_csv("sentry_history.csv", index=False)
                 st.session_state.new_post_count += len(manual_new)
-                status.update(label="✅ Manual Sync Complete!", state="complete")
+                status.update(label="Manual Sync Complete!", state="complete")
                 st.rerun()
             else:
-                status.update(label="✨ Already up to date.", state="complete")
+                status.update(label="Already up to date.", state="complete")
         else:
             st.sidebar.warning("No posts found.")
 st.sidebar.divider()
-st.sidebar.caption(f"🕒 System Heartbeat: {datetime.now().strftime('%I:%M %p')}")
-st.sidebar.caption("♻️ Auto-refresh active (5m interval)")
+st.sidebar.caption(f"System Heartbeat: {datetime.now().strftime('%I:%M %p')}")
+st.sidebar.caption("Auto-refresh active (5m interval)")
 # =========================
-# 6. 🛡️ MAIN DASHBOARD UI
+#  MAIN DASHBOARD UI
 # =========================
 st.markdown("""
 <style>
@@ -215,10 +193,8 @@ tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
     "Overview", "Users", "Sentiment Intel", "High Activity", "Topic Analysis", "Archive"
 ])
 
-# --- TAB 1: OVERVIEW ---
 with tab1:
     if not df.empty:
-        # 1. Top Row: Sentiment Metrics
         counts = df['Sentiment'].value_counts()
         c1, c2, c3, c4 = st.columns(4)
         c1.metric("🔴 Negative", counts.get('Negative', 0))
@@ -228,7 +204,6 @@ with tab1:
         
         st.divider()
 
-        # 2. Middle Row: Visual Analytics
         col_l, col_r = st.columns(2)
         with col_l:
             fig_pie = px.pie(df, names='Sentiment', hole=0.4, title="Sentiment Distribution",
@@ -244,12 +219,8 @@ with tab1:
 
         st.divider()
 
-        # =========================
-        # 🌐 THE MAIN FEED SECTION
-        # =========================
-        st.subheader("🌐 Main Feed: Latest Activity")
+        st.subheader(" Main Feed: Latest Activity")
         
-        # We sort by Timestamp (Descending) so newest posts appear first
         feed_df = df.sort_values(by='Timestamp', ascending=False)
         
         st.dataframe(
@@ -270,7 +241,6 @@ with tab1:
     else:
         st.info("The feed is currently empty. Fetch some data from the sidebar to begin.")
 
-# --- TAB 2: USERS ---
 
 with tab2:
 
@@ -287,77 +257,43 @@ with tab2:
                 st.dataframe(user_analysis, use_container_width=True, hide_index=True)
 
             st.divider()
-            st.markdown(f"### 📑 Post History for `{sel_user}`")
+            st.markdown(f"Post History for `{sel_user}`")
             u_hist = df[df['Username'] == sel_user].sort_values(by='Timestamp', ascending=False)
             st.dataframe(u_hist[['Content', 'Sentiment', 'Magnitude', 'Timestamp']], use_container_width=True, hide_index=True)
-# --- TAB 3: SENTIMENT INTELLIGENCE ---
-
-# Inside app.py Tab 3
 
 with tab3:
-
     st.subheader("Sentiment Intelligence (Explainable AI)")
-
     if not df.empty:
-
-        # Check if 'Intent' column exists (it will after you Re-Analyze)
-
         cols_to_show = ['Username', 'Content', 'Sentiment', 'Intent', 'Magnitude', 'Explanation']
-
         available_cols = [c for c in cols_to_show if c in df.columns]
 
-        
-
         st.dataframe(
-
             df[available_cols], 
-
             column_config={
 
                 "Magnitude": st.column_config.ProgressColumn("Confidence", min_value=0, max_value=1),
-
                 "Intent": st.column_config.TextColumn("User Intent", help="The possible goal of the user's post"),
-
                 "Content": st.column_config.TextColumn("Content", width="large")
 
             },
-
-            use_container_width=True, hide_index=True
-
-        )
-
-
-
-# --- TAB 4, 5, 6: (Condensed for brevity) ---
+            use_container_width=True, hide_index=True)
 
 with tab4:
-
-    st.subheader("🔥 High Activity Posts")
-
+    st.subheader("High Activity Posts")
     if not df.empty:
-
         high_act = df[(df['Upvotes'] >= 30) | (df['Comment_Count'] >= 10)]
-
         st.dataframe(high_act[['Username', 'Content', 'Upvotes', 'Comment_Count', 'Sentiment']], use_container_width=True, hide_index=True)
 
 with tab5:
-
-    st.subheader("📊 Topic Analysis")
-
+    st.subheader("Topic Analysis")
     if not df.empty:
-
         t_sel = st.selectbox("Filter Topic", ["All"] + list(df['Primary_Topic'].unique()))
-
         f_df = df if t_sel == "All" else df[df['Primary_Topic'] == t_sel]
-
         st.dataframe(f_df[['Username', 'Content', 'Primary_Topic', 'Sentiment']], use_container_width=True, hide_index=True)   
 
-
-# --- TAB 6: ARCHIVE & CORRECTIONS ---
 with tab6:
     st.subheader("Archive")
     if not df.empty:
-        # Define specific columns to allow manual cleanup
         edited_df = st.data_editor(
             df[['Username', 'Content', 'Sentiment', 'Magnitude', 'Timestamp']], 
             column_config={
@@ -372,7 +308,7 @@ with tab6:
             hide_index=True, use_container_width=True, key="archive_editor"
         )
         
-        if st.button("💾 Save Manual Corrections"):
+        if st.button("Save Manual Corrections"):
             df.update(edited_df)
             df.to_csv("sentry_history.csv", index=False)
             st.success("Database refined!")
