@@ -7,17 +7,15 @@ import streamlit_authenticator as stauth
 from datetime import datetime
 from streamlit_autorefresh import st_autorefresh
 
-
-
+# Import your custom modules
 from utils.analyzer import load_sentiment_model, get_sentiment_roberta
 from utils.processor import calculate_fis
 from utils.reddit_client import fetch_recent_posts
 from utils.ai_topic_classifier import load_topic_model, classify_topics_ai
 
-
+# --- INITIALIZATION ---
 st_autorefresh(interval=300000, key="sentinel_refresh")
 st.set_page_config(page_title="Sentinel-D: Intelligence System", layout="wide")
-
 
 if 'new_post_count' not in st.session_state:
     st.session_state.new_post_count = 0
@@ -36,13 +34,11 @@ def get_time_ago(timestamp):
     return timestamp.strftime("%b %d")
 
 def detect_sarcasm(text, raw_label):
-    """Simple keyword check to flip Positive results to Sarcasm."""
     sarcasm_triggers = ["pala", "wow", "talaga", "claps", "naman", "daw"]
     text_lower = text.lower()
     if raw_label == "Positive" and any(word in text_lower for word in sarcasm_triggers):
         return "Sarcasm"
     return raw_label
-
 
 with st.spinner("Initializing Intelligence Engines..."):
     topic_classifier = load_topic_model()
@@ -51,13 +47,12 @@ with st.spinner("Initializing Intelligence Engines..."):
 try:
     df = pd.read_csv("sentry_history.csv")
     df['Timestamp'] = pd.to_datetime(df['Timestamp'])
-    # Ensure Magnitude is a float
     if 'Magnitude' in df.columns:
         df['Magnitude'] = df['Magnitude'].astype(float)
 except Exception:
     df = pd.DataFrame()
 
-
+# --- 1. AUTHENTICATION SETUP ---
 with open('config.yaml') as file:
     config = yaml.load(file, Loader=SafeLoader)
 
@@ -68,18 +63,19 @@ authenticator = stauth.Authenticate(
     config['cookie']['expiry_days']
 )
 
-# Render Login Widget
+# --- 2. RENDER LOGIN WIDGET ---
+# Uses the required location parameter for v0.4.x
 authenticator.login(location='main')
 
-# Bridge Variables
-auth_status = st.session_state.get("authentication_status")
-name = st.session_state.get("name")
-username = st.session_state.get("username")
-
-
-st.sidebar.title(f"Welcome, {name}")
-authenticator.logout("Logout", "sidebar")
-st.sidebar.markdown("---")
+# --- 3. MAIN APP LOGIC (WRAPPED IN AUTH CHECK) ---
+# This fixes NameErrors by ensuring variables like 'name' aren't used until login is successful
+if st.session_state.get("authentication_status"):
+    
+    # Sidebar Setup
+    st.sidebar.title(f"Welcome, {st.session_state['name']}")
+    # FIXED: Added unique key to prevent DuplicateElementKey error
+    authenticator.logout("Logout", "sidebar", key="unique_sidebar_logout")
+    st.sidebar.markdown("---")
 
 if st.session_state.new_post_count > 0 and not df.empty:
     with st.sidebar.popover(f"🔔 Notifications ({st.session_state.new_post_count})", use_container_width=True):
